@@ -13,11 +13,11 @@ AWS.config.setPromisesDependency(Promise);
 
 exports.postUserConfirm = (event, context, callback) => {
   if (event.request.userAttributes.email) {
-    sendEmail(
-      event.request.userAttributes.email,
-      "Congratulations " + event.userName + ", you have been confirmed: ",
-      function(status) {}
-    );
+    // sendEmail(
+    //   event.request.userAttributes.email,
+    //   "Congratulations " + event.userName + ", you have been confirmed: ",
+    //   function(status) {}
+    // );
   }
   const stateMachineArn = process.env.statemachine_arn;
   const params = {
@@ -64,17 +64,6 @@ module.exports.syncCognitoToDynamodb = (event, context, callback) => {
     .promise()
     .then(r => {
       return callback(null, event);
-    })
-    .catch(err => {
-      console.log(err);
-      return callback(null, err);
-    });
-};
-
-module.exports.importExistingUsersToDB = (event, context, callback) => {
-  recursiveImport()
-    .then(data => {
-      return callback(null, data);
     })
     .catch(err => {
       console.log(err);
