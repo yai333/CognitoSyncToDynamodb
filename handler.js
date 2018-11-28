@@ -36,6 +36,26 @@ exports.postUserConfirm = (event, context, callback) => {
     });
 };
 
+module.exports.syncUserDepartmentToDynamodb = (event, context, callback) => {
+  const params = {
+    TableName: process.env.userDepartmentsTable,
+    Item: {
+      department: event
+    },
+    ConditionExpression: "attribute_not_exists(department)"
+  };
+
+  documentClient
+    .put(params)
+    .promise()
+    .then(r => {
+      return callback(null);
+    })
+    .catch(err => {
+      return callback(err);
+    });
+};
+
 module.exports.syncCognitoToDynamodb = (event, context, callback) => {
   const {
     request: {

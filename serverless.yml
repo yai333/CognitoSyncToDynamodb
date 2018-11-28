@@ -19,6 +19,10 @@ plugins:
   - serverless-step-functions
   - serverless-pseudo-parameters
 custom:
+  tableThroughputs:
+    default: 1
+  tableThroughput: ${self:custom.tableThroughputs.${opt:stage}, self:custom.tableThroughputs.default}
+  userDepartmentsTableName: ${opt:stage}-UserDepartments
   Client:
       dev: 'yourUserPoolClientIdDev'
       production: 'yourUserPoolClientIdProduction'
@@ -29,7 +33,7 @@ provider:
   name: aws
   runtime: nodejs8.10
   stage: ${opt:stage, 'dev'}
-  region: 'You Region'
+  region: 'ap-southeast-2'
   iamRoleStatements:
     - Effect: "Allow"
       Action:
@@ -39,22 +43,28 @@ provider:
       Action:
         - "dynamodb:*"
       Resource:  [
+        "arn:aws:dynamodb:#{AWS::Region}:#{AWS::AccountId}:table/UsersDev",
+        "arn:aws:dynamodb:#{AWS::Region}:#{AWS::AccountId}:table/UsersDev/index/*",
+        "arn:aws:dynamodb:#{AWS::Region}:#{AWS::AccountId}:table/eHealth.Questions",
+        "arn:aws:dynamodb:#{AWS::Region}:#{AWS::AccountId}:table/eHealth.Questions/index/*",
         "arn:aws:dynamodb:#{AWS::Region}:#{AWS::AccountId}:table/Users",
         "arn:aws:dynamodb:#{AWS::Region}:#{AWS::AccountId}:table/Users/index/*"
       ]
     - Effect: "Allow"
       Action:
         - "dynamodb:*"
-      Resource:  [
-        "arn:aws:dynamodb:#{AWS::Region}:#{AWS::AccountId}:table/UsersDev",
-        "arn:aws:dynamodb:#{AWS::Region}:#{AWS::AccountId}:table/UsersDev/index/*"
-      ]
+      Resource:
+        - "Fn::GetAtt": [ UserDepartmentsTable, Arn ]
+        - "Fn::Join":
+          - "/"
+          -
+            - {"Fn::GetAtt": [ UserDepartmentsTable, Arn ]}
+            - "index/*"
     - Effect: "Allow"
       Action:
         - "states:StartExecution"
       Resource:
         - "*"
-
 stepFunctions:
   stateMachines:
     cognitoSyncDynamodbFlow:
@@ -66,6 +76,10 @@ stepFunctions:
           CognitoSyncDynamodb:
             Type: Task
             Resource: arn:aws:lambda:${opt:region}:#{AWS::AccountId}:function:${self:service}-${opt:stage}-syncCognitoToDynamodb
+            Next: CognitoSyncUserDepartment
+          CognitoSyncUserDepartment:
+            Type: Task
+            Resource: arn:aws:lambda:${opt:region}:#{AWS::AccountId}:function:${self:service}-${opt:stage}-syncUserDepartmentToDynamodb
             End: true
 
 functions:
@@ -78,8 +92,25 @@ functions:
     handler: handler.syncCognitoToDynamodb
     environment:
       userTable: ${self:custom.userTable.${opt:stage}}
-
+  syncUserDepartmentToDynamodb:
+    handler: handler.syncUserDepartmentToDynamodb
+    environment:
+      userDepartmentsTable: ${self:custom.userDepartmentsTableName}
 resources:
+  Resources:
+    UserDepartmentsTable:
+          Type: AWS::DynamoDB::Table
+          Properties:
+            TableName: ${self:custom.userDepartmentsTableName}
+            AttributeDefinitions:
+              - AttributeName: department
+                AttributeType: S
+            KeySchema:
+              - AttributeName: department
+                KeyType: HASH
+            ProvisionedThroughput:
+              ReadCapacityUnits: ${self:custom.tableThroughput}
+              WriteCapacityUnits: ${self:custom.tableThroughput}
   Outputs:
     CognitoSyncDynamodbFlow:
       Description: The ARN of the state machine
